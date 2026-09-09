@@ -9566,14 +9566,27 @@ a.single-post-category:hover {
   margin-bottom: 0;
 }
 
+/* Pas de ratio impose : une photo portrait etait rognee de moitie par le 3/2.
+   Les attributs width/height poses par WordPress suffisent au navigateur pour
+   reserver la place avant chargement, donc height:auto ne cree pas de saut de page. */
 .single-post-content img {
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 3 / 2;
-  object-fit: cover;
+  height: auto;
   border-radius: 12px;
   margin: 2rem auto;
   display: block;
+}
+
+/* Filet anti-saut de page pour les anciennes images inserees sans attributs
+   width/height (articles d'avril 2026) : sans dimensions intrinseques le
+   navigateur ne peut rien reserver, on leur garde donc l'ancien ratio impose.
+   :not([width][height]) exige la PAIRE complete pour sortir du filet, car le
+   navigateur a besoin des deux attributs pour deduire un ratio.
+   Les emoji sont exclus, ils sont dimensionnes par la regle .emoji de WordPress. */
+.single-post-content img:not([width][height]):not(.emoji) {
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
 }
 
 @media (max-width: 600px) {
@@ -20227,6 +20240,9 @@ body.woocommerce-cart div.woocommerce-wrapper {
   font-size: 1rem;
   line-height: 1.75;
   color: var(--color-dark, #323232);
+  /* Le contenu du projet est injecte en textContent (page-sur-mesure.php l.686),
+     donc sans ceci une description en plusieurs paragraphes s'affiche en un pave. */
+  white-space: pre-line;
 }
 
 .surmesure-modal-quote {
