@@ -4,6 +4,66 @@
 
 ---
 
+## [✅ FAIT — 2026-09-09] Reporter sur test le commit CSS parti par erreur sur master
+
+**Date :** 2026-09-09
+**Priorité :** haute (rien n'est cassé, mais master est en avance sur test, ce qui est l'inverse du sens de circulation)
+
+**Contexte**
+
+Robin a commité un correctif d'affichage directement sur `master` au lieu de `test-theme-sapi-maison`. Il s'en est aperçu tout de suite.
+
+**Rien n'est parti en production, et c'est vérifié, pas supposé.** `deploy-prod.yml` ne déclare que `workflow_dispatch` : le déclencheur `push` sur `master` est commenté dans le fichier. J'ai aussi contrôlé en ligne : la feuille servie par `atelier-sapi.fr` contient encore `aspect-ratio:3/2` sur `.single-post-content img` et un `.surmesure-modal-desc` sans `white-space`. Le bundle Autoptimize en prod date du 02/09 18:44 UTC, soit une minute après le merge du 2 septembre. La prod est donc exactement à l'état de ce merge.
+
+État des références lu dans `.git/refs/heads` (aucune commande git lancée depuis Cowork, cf. `feedback_git_sandbox_index_lock`) :
+
+| Référence | Commit | Ce que c'est |
+|---|---|---|
+| `master` | `df344901b0375293d820d51bacfe814c564bce55` | le commit à reporter, fait le 09/09 06:57 UTC |
+| son parent | `857d257b42fb855a6e3a83e1e7a4e94aa4c5d628` | merge du 02/09, l'état actuellement en prod |
+| `test-theme-sapi-maison` | `41c8fb9e03e12939f74a84ba3310e2cb982f1d38` | tip mergé le 02/09 |
+| `HEAD` | sur `test-theme-sapi-maison` | Robin est revenu sur test |
+
+Autrement dit **master n'a qu'un seul commit d'avance sur test**, et c'est celui-là. Il n'y a pas de backlog caché à démêler.
+
+Le commit `df344901` ne devrait toucher que `style.css`, en deux endroits : `.single-post-content img` vers la ligne 9569 (retrait du `aspect-ratio: 3/2` et du `object-fit: cover`, passage en `height: auto`, plus un filet `:not([width][height]):not(.emoji)` qui conserve l'ancien ratio pour les vieilles images sans attributs de dimensions) et `.surmesure-modal-desc` vers la ligne 20226 (ajout de `white-space: pre-line`).
+
+**À faire**
+
+1. Confirmer que `df344901` ne modifie que `style.css` et rien d'autre. Si le commit touche d'autres fichiers, s'arrêter et le signaler : le reste de la tâche suppose un commit isolé.
+2. Confirmer que `master` est bien à exactement un commit d'avance sur `test-theme-sapi-maison`, sans divergence.
+3. Reporter `df344901` sur `test-theme-sapi-maison` par cherry-pick, puis pousser la branche pour déclencher `deploy-test.yml`.
+4. Faire l'audit test ↔ master et confirmer que le contenu de `style.css` est désormais identique sur les deux branches.
+5. **Ne pas déclencher `deploy-prod.yml`.** Robin recette d'abord sur `test.atelier-sapi.fr`, puis lance la mise en prod à la main depuis l'onglet Actions.
+
+**Contraintes**
+
+- Aucun `push --force`, aucune réécriture d'historique. Le commit est déjà sur master et peut y rester : master et test convergeront naturellement au prochain merge.
+- Ne rien toucher en production.
+- Si le cherry-pick entre en conflit, s'arrêter et décrire le conflit plutôt que de trancher : `style.css` fait 691 Ko et une résolution approximative y passerait inaperçue.
+
+**Critères de succès**
+
+- `test.atelier-sapi.fr` sert une feuille de style contenant `:not([width][height])` et un `.surmesure-modal-desc` avec `white-space: pre-line`.
+- `style.css` identique sur `master` et `test-theme-sapi-maison`.
+- `atelier-sapi.fr` inchangée, bundle Autoptimize toujours celui du 02/09.
+- Historique linéaire, aucune référence perdue.
+
+**Suite côté Robin :** recette numérotée dans `correctifs-09-09-images-et-modale.html`, à la racine du dossier Cowork. Les étapes 1 à 6 se font sur test, les 7 et 8 seulement après la mise en prod, parce que l'article du Pilat n'existe qu'en production.
+
+**✅ Fait le 2026-09-09 par Claude Code**
+
+- `df344901` ne touche que `style.css` (18 insertions, 2 suppressions) — commit isolé, confirmé.
+- **Nuance sur le point 2 :** `git rev-list --count test...master` annonce **20** commits d'avance, pas un seul (deux merges de test + les commits de branches feature repris côté master). Mais côté *contenu* la note est juste : `git diff test master` ne sort que `style.css` et ces 20 lignes. Aucune divergence, `test` est ancêtre de `master`.
+- Cherry-pick `-x` sur `test-theme-sapi-maison` : **aucun conflit**. Nouveau commit `e1340b3`, message et auteur d'origine conservés, avec la ligne `(cherry picked from commit df344901…)`.
+- Poussé sur `origin/test-theme-sapi-maison` (`41c8fb9..e1340b3`), sans force. `deploy-test.yml` a tourné : la feuille servie par `test.atelier-sapi.fr` est **byte-identique** au `style.css` local (692 178 o, `last-modified` 09/09 07:13:04 UTC) et contient bien `:not([width][height]):not(.emoji)` et `white-space: pre-line`.
+- Audit test ↔ master : `style.css` porte le **même blob** des deux côtés (`c6b5b9d5…`), `git diff test master` est vide.
+- Prod **non touchée** : `deploy-prod.yml` non déclenché, `atelier-sapi.fr` sert toujours 691 202 o avec l'`aspect-ratio: 3/2` inconditionnel et zéro occurrence de `:not([width][height])`.
+
+**Reste à faire côté Robin :** la recette 1→6 sur test, puis le lancement manuel de `deploy-prod.yml` depuis l'onglet Actions.
+
+---
+
 ## [TÂCHE] Anti-spam formulaires de contact — time-trap + filtre junk + rate limit Conseiller
 **Date :** 2026-08-05
 **Priorité :** haute
