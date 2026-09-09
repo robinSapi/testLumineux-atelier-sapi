@@ -1099,27 +1099,87 @@ get_header();
       ?>
     </div>
     <?php
-    // CTA vers la page catégorie du produit
-    $product_cats = get_the_terms($product_id, 'product_cat');
-    if ($product_cats && !is_wp_error($product_cats)) {
-      $main_cat = null;
-      foreach ($product_cats as $cat) {
-        if ($cat->slug !== 'non-classe' && $cat->slug !== 'uncategorized') {
-          $main_cat = $cat;
-          break;
-        }
+    /* CTA vers la catégorie de ce qui est RÉELLEMENT affiché au-dessus.
+       Avant, la catégorie venait de `$product_id`, le produit courant. Sur une
+       fiche accessoire, le snippet « Vous aimerez aussi sur les fiches
+       accessoires » filtre `woocommerce_related_products` et remplit la grille
+       de lampes à poser : le bouton renvoyait quand même vers les accessoires,
+       et le visiteur repartait dans la boucle qu'on venait justement d'ouvrir.
+       `$related_products` sort de `wc_get_related_products()`, qui applique ce
+       filtre — il contient donc déjà ce que le snippet a substitué.
+
+       On compte la catégorie de chaque produit affiché et on garde la plus
+       représentée. Lire celle du premier suffirait dans le cas nominal, mais
+       LA GRILLE MIXTE N'EST PAS UNE HYPOTHÈSE : `snippet-sapi-related-accessoires.php`
+       a une passe 2 qui complète depuis tout le catalogue quand la catégorie
+       visée n'a pas assez de produits éligibles. Le jour où il reste moins de
+       quatre lampes à poser publiées, la grille se remplit de suspensions et
+       **le bouton bascule tout seul sur « suspensions »**. C'est voulu — il
+       décrit ce qui est à l'écran — mais ça se produira sans prévenir.
+       Le `>` strict fait gagner, à égalité, la catégorie rencontrée en premier,
+       c'est-à-dire celle du premier produit de la grille — sans dépendre de la
+       stabilité de tri de la version de PHP.
+
+       ⚠️ « première catégorie d'un produit » = première par ordre alphabétique
+       du nom : `get_the_terms()` trie par `name ASC`. Ce n'est pas la catégorie
+       principale au sens métier, mais c'est la convention déjà en place dans
+       `content-product.php` et dans le code d'avant. */
+    $compte_cats = [];  // slug => nombre de produits affichés
+    $termes_cats = [];  // slug => WP_Term
+    foreach ($related_products as $related_cta_id) {
+      /* Pas de cast en entier ici. `wc_get_related_products()` renvoie des IDs
+         aujourd'hui, mais `(int)` sur un WP_Post donnerait 1 : les quatre tours
+         compteraient alors la catégorie de l'article d'ID 1 et le bouton
+         pointerait ailleurs, l'air sûr de lui, sans une erreur. `get_the_terms()`
+         accepte les deux formes — comme `get_post()` juste au-dessus pour la
+         grille. */
+      $cats_produit = get_the_terms($related_cta_id, 'product_cat');
+      if (!$cats_produit || is_wp_error($cats_produit)) continue;
+      foreach ($cats_produit as $cat) {
+        // `carte-cadeau` est exclu du vote : son nom est au singulier, il
+        // produirait « Voir toutes les carte cadeau », et surtout il n'a rien
+        // à faire au bout d'un bouton posé sous une grille de luminaires.
+        if ($cat->slug === 'non-classe' || $cat->slug === 'uncategorized' || $cat->slug === 'carte-cadeau') continue;
+        $compte_cats[$cat->slug] = (isset($compte_cats[$cat->slug]) ? $compte_cats[$cat->slug] : 0) + 1;
+        $termes_cats[$cat->slug] = $cat;
+        break; // une seule catégorie retenue par produit, comme avant
       }
-      if ($main_cat) {
-        $masculin = in_array($main_cat->slug, ['accessoires', 'lampadaires']);
-        $cta_text = $masculin ? 'Voir tous les ' : 'Voir toutes les ';
-        $cta_text .= strtolower($main_cat->name);
-        ?>
-        <div class="related-cta">
-          <a href="<?php echo esc_url(get_term_link($main_cat)); ?>" class="related-cta-btn">
-            <?php echo esc_html($cta_text); ?>
-          </a>
-        </div>
-      <?php } ?>
+    }
+
+    $main_cat = null;
+    $meilleur_compte = 0;
+    foreach ($compte_cats as $slug_cat => $nb) {
+      if ($nb > $meilleur_compte) {
+        $meilleur_compte = $nb;
+        $main_cat = $termes_cats[$slug_cat];
+      }
+    }
+
+    /* Aucune catégorie exploitable parmi les produits affichés : pas de bouton.
+       Pas de repli sur la catégorie du produit courant — ce serait remettre
+       exactement la promesse fausse qu'on retire ici. Le code d'avant pouvait
+       déjà n'afficher aucun bouton (produit sans catégorie), donc ce cas de
+       sortie n'est pas nouveau.
+       Genres : « Accessoires » et « Lampadaires » sont les deux seuls noms de
+       terme masculins. « Suspensions », « Appliques et plafonniers » et
+       « Lampes à poser » sont féminins — vérifié sur les pages catégorie le
+       09/09. `lampesaposer` devient atteignable ici pour la première fois,
+       et tombe bien du côté féminin. */
+    if ($main_cat) {
+      $masculin = in_array($main_cat->slug, ['accessoires', 'lampadaires']);
+      $cta_text = $masculin ? 'Voir tous les ' : 'Voir toutes les ';
+      // mb_strtolower : les cinq noms actuels passent aussi avec strtolower,
+      // mais une future catégorie à initiale accentuée sortirait telle quelle
+      // (« Voir toutes les Éditions limitées »). Même repli qu'en functions.php.
+      $cta_text .= function_exists('mb_strtolower')
+        ? mb_strtolower($main_cat->name, 'UTF-8')
+        : strtolower($main_cat->name);
+      ?>
+      <div class="related-cta">
+        <a href="<?php echo esc_url(get_term_link($main_cat)); ?>" class="related-cta-btn">
+          <?php echo esc_html($cta_text); ?>
+        </a>
+      </div>
     <?php } ?>
   </section>
   <?php endif; ?>
