@@ -1101,16 +1101,16 @@ get_header();
     <?php
     /* CTA vers la catégorie de ce qui est RÉELLEMENT affiché au-dessus.
        Avant, la catégorie venait de `$product_id`, le produit courant. Sur une
-       fiche accessoire, le snippet « Vous aimerez aussi sur les fiches
-       accessoires » filtre `woocommerce_related_products` et remplit la grille
-       de lampes à poser : le bouton renvoyait quand même vers les accessoires,
-       et le visiteur repartait dans la boucle qu'on venait justement d'ouvrir.
+       fiche accessoire, `inc/sapi-related-accessoires.php` filtre
+       `woocommerce_related_products` et remplit la grille de lampes à poser :
+       le bouton renvoyait quand même vers les accessoires, et le visiteur
+       repartait dans la boucle qu'on venait justement d'ouvrir.
        `$related_products` sort de `wc_get_related_products()`, qui applique ce
-       filtre — il contient donc déjà ce que le snippet a substitué.
+       filtre — il contient donc déjà ce qui a été substitué.
 
        On compte la catégorie de chaque produit affiché et on garde la plus
        représentée. Lire celle du premier suffirait dans le cas nominal, mais
-       LA GRILLE MIXTE N'EST PAS UNE HYPOTHÈSE : `snippet-sapi-related-accessoires.php`
+       LA GRILLE MIXTE N'EST PAS UNE HYPOTHÈSE : `inc/sapi-related-accessoires.php`
        a une passe 2 qui complète depuis tout le catalogue quand la catégorie
        visée n'a pas assez de produits éligibles. Le jour où il reste moins de
        quatre lampes à poser publiées, la grille se remplit de suspensions et

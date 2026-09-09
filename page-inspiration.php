@@ -47,7 +47,7 @@ if ($products_query->have_posts() && function_exists('get_field')) {
 shuffle($photos);
 
 // Lecture des taxonomies media_room / media_essence pour chaque photo
-// (snippet maison "Photos par pièce + matière"). Précharge le cache de termes
+// (déclarées par inc/sapi-media-taxonomies.php). Précharge le cache de termes
 // pour éviter ~2N requêtes lors des wp_get_object_terms par photo.
 $used_rooms     = []; // slug => label (collectés pour la card filtres)
 $used_essences  = [];

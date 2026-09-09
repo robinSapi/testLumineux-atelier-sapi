@@ -96,6 +96,40 @@ if (is_admin()) {
   require_once get_template_directory() . '/inc/conseiller-rules-admin.php';
 }
 
+/* ═══ Ex-snippets rapatriés dans le thème le 09/09/2026 ═══════════════════════
+   Position dans ce fichier : sans importance, tout passe par des hooks. Groupés
+   ici avec les autres includes du thème, c'est tout.
+
+   ⚠️ LE GARDE-FOU DE COHABITATION EST ICI, AU POINT D'INCLUSION, ET PAS DANS LES
+   FICHIERS. PHP déclare les fonctions de premier niveau d'un fichier à la
+   COMPILATION, c'est-à-dire dès que `require_once` l'ouvre, avant d'en exécuter
+   la moindre ligne. Un `return;` en tête de fichier arriverait donc trop tard :
+   le « Cannot redeclare function » serait déjà tombé, et le site serait blanc,
+   front ET admin — donc sans accès à l'écran qui permet de désactiver le
+   snippet fautif. Un `require_once` placé dans un `if` ne compile le fichier que
+   si la condition est vraie : c'est le seul endroit où ce test protège.
+
+   Tant qu'un snippet Code Snippets est encore actif, il a défini ses fonctions
+   sur `plugins_loaded` (wp-settings.php l.641), donc AVANT le chargement de
+   functions.php (l.757). On le laisse la main, et on peut déployer d'abord,
+   désactiver les snippets ensuite, sans fenêtre où le site casse.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Taxonomies media_room / media_essence sur les médias. Le thème LIT ces
+// taxonomies sans les déclarer (sapi_get_product_photo_ids ici même,
+// page-inspiration.php) : quand la déclaration vivait dans un snippet, le
+// désactiver faisait renvoyer du vide à ces filtres, sans erreur.
+if (!function_exists('sapi_register_media_room_taxonomy')) {
+  require_once get_template_directory() . '/inc/sapi-media-taxonomies.php';
+}
+
+// « Vous aimerez aussi » sur les fiches accessoires. Forme une seule mécanique
+// avec le bouton de woocommerce/single-product.php, qui lit les catégories de ce
+// que ce filtre a mis dans la grille. Les deux doivent voyager ensemble.
+if (!function_exists('sapi_related_accessoires_vers_luminaires')) {
+  require_once get_template_directory() . '/inc/sapi-related-accessoires.php';
+}
+
 // Catalogue B2B (prescripteurs) — Temps 1. Source de données + mapping specs +
 // champs ACF éditoriaux. Chargé front ET admin (ACF acf/init + rendu template).
 require_once get_template_directory() . '/inc/catalogue-data.php';
