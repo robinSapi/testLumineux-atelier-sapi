@@ -385,15 +385,23 @@ get_header();
         <!-- Prix -->
         <div class="product-price-v2">
           <?php
-          // Toujours afficher "À partir de" avec le prix minimum
+          // « À partir de » n'est affiché que si le prix peut RÉELLEMENT monter :
+          // produit variable, ou add-on payant (voir sapi_product_has_paid_addon).
+          // Avant, le label était écrit dans les deux branches sans condition :
+          // sur un produit simple sans option, il annonçait une version plus
+          // chère qui n'existe pas.
           if ($is_variable) {
-            $min_price = $product->get_variation_price('min');
-            echo '<span class="price-from-label">À partir de </span>';
-            echo '<span class="price-amount">' . wc_price($min_price) . '</span>';
+            $displayed_price = $product->get_variation_price('min');
           } else {
-            echo '<span class="price-from-label">À partir de </span>';
-            echo '<span class="price-amount">' . wc_price($product->get_price()) . '</span>';
+            $displayed_price = $product->get_price();
           }
+
+          $price_can_rise = $is_variable || sapi_product_has_paid_addon($product_id);
+
+          if ($price_can_rise) {
+            echo '<span class="price-from-label">À partir de </span>';
+          }
+          echo '<span class="price-amount">' . wc_price($displayed_price) . '</span>';
           ?>
         </div>
 

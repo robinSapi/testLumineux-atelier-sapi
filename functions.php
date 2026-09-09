@@ -1300,6 +1300,63 @@ function sapi_get_product_photo_ids_with_fallback($post_id, $type = '', $limit =
 }
 
 /**
+ * Le prix d'un produit peut-il monter à cause d'un Product Add-On payant ?
+ *
+ * Sert à décider si le label « À partir de » du bloc prix est vrai. Sur un
+ * produit simple sans add-on payant, ce label annonce une version plus chère
+ * qui n'existe pas.
+ *
+ * ⚠️ On passe par le helper du plugin (`get_product_addons`) et PAS par le
+ * meta `_product_addons` en direct : le meta ne contient que les add-ons posés
+ * sur CE produit, alors que le plugin en ajoute aussi par catégorie (add-ons
+ * globaux). Lire le meta seul ferait disparaître le label sur un produit qui a
+ * bel et bien des options payantes, sans que rien ne le signale.
+ *
+ * Plugin absent ou désactivé = aucun add-on nulle part = le prix ne peut pas
+ * monter par ce biais. `false` est alors la bonne réponse, pas un repli.
+ *
+ * @param int $product_id
+ * @return bool
+ */
+function sapi_product_has_paid_addon($product_id) {
+  if (!$product_id || !class_exists('WC_Product_Addons_Helper')) return false;
+
+  $addons = WC_Product_Addons_Helper::get_product_addons($product_id);
+  if (empty($addons) || !is_array($addons)) return false;
+
+  foreach ($addons as $addon) {
+    $type = isset($addon['type']) ? $addon['type'] : '';
+
+    // 'heading' est purement décoratif, il ne porte jamais de prix.
+    if ($type === 'heading') continue;
+
+    // 'custom_price' : c'est l'acheteur qui saisit le montant. Rien n'est stocké
+    // dans la configuration, et pourtant le total monte.
+    if ($type === 'custom_price') return true;
+
+    // ⚠️ Depuis la v3.0 du plugin, `options` n'existe QUE pour multiple_choice
+    // et checkbox. Les sept autres types (input_multiplier, custom_text,
+    // custom_textarea, file_upload, datepicker, heading, custom_price) portent
+    // leur prix ICI, au niveau de l'add-on. Ne lire que `options` marcherait
+    // aujourd'hui — les deux seuls add-ons du site sont des multiple_choice —
+    // et le jour où une gravure à 15 € est ajoutée, le label disparaîtrait
+    // sans un mot alors que le prix monte. Vérifié dans addons.js 8.4.1 :
+    // la branche input_multiplier lit `$addon.data('price')`, jamais d'options.
+    if (isset($addon['price']) && (float) $addon['price'] > 0) return true;
+
+    // multiple_choice et checkbox : la seule famille dont le prix vit dans les
+    // options. Couvre flat_fee, quantity_based et percentage_based — dans les
+    // trois cas une valeur strictement positive augmente le total.
+    if (empty($addon['options']) || !is_array($addon['options'])) continue;
+    foreach ($addon['options'] as $option) {
+      if (isset($option['price']) && (float) $option['price'] > 0) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Handler AJAX (S28 Phase 4b) — renvoie pour une liste d'IDs produit la map
  * `{ product_id: [url1, url2, ...] }` des photos filtrées par pièce/essence,
  * avec auto-fallback sur la photo par défaut si la pièce n'a aucune photo
