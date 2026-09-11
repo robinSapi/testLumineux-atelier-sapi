@@ -4,6 +4,102 @@
 
 ---
 
+## [TÂCHE] Maintenance du dépôt : sortir la maquette `sapi-radical-atelier` et lancer le `git gc`
+
+**Date :** 2026-09-09
+**Priorité :** normale (aucune urgence fonctionnelle, mais en attente depuis 13 semaines)
+**Demandé par :** Robin, arbitrage du 09/09 pendant la revue hebdo du dossier Cowork
+
+**Contexte**
+
+Le dépôt `site-web/` pèse 253 Mo, dont **198 Mo pour le seul `.git`**. Deux sujets de
+maintenance traînent depuis juin, sans effet fonctionnel, signalés dans chaque rapport
+de nettoyage hebdo depuis le 17 juin. Robin a validé les deux le 9 septembre. Il commit
+et push lui-même, comme toujours.
+
+**Ce qui est déjà vérifié, tu n'as pas à le refaire :**
+
+- `mockups/sapi-radical-atelier/` = **48 Mo sur les 50 Mo** de `mockups/`. Le reliquat
+  après retrait sera de **1,8 Mo**. Le poids est **réparti sur 40 images** dans
+  `assets/img/`, pas concentré sur quelques-unes.
+- **Aucune référence à cette maquette nulle part dans le dépôt.** Aucun HTML, PHP ou MD
+  ne la cite. Les seules mentions sont mes rapports de nettoyage, hors dépôt.
+- **Aucun risque de déploiement** : `mockups/**` est exclu de `deploy-prod.yml` (l. 68)
+  et de `deploy-test.yml` (l. 63). La maquette n'est ni servie publiquement, ni présente
+  sur un serveur, donc rien ne sera supprimé en ligne.
+- Les 47 fichiers sont bien dans `.git/index`, aucun LFS, aucun `.gitignore` ne les
+  couvre. La restauration est donc possible.
+
+---
+
+**1. Sortir `site-web/mockups/sapi-radical-atelier/` du dépôt**
+
+⚠️ **Chemin exact et complet, sans joker.** Il existe un homonyme voisin,
+`mockups/sapi-radical-kinetic/` (16 Ko), qu'un `rm -rf mockups/sapi-radical*`
+emporterait. Vise `mockups/sapi-radical-atelier/` et rien d'autre.
+
+⚠️ **Ne pas réécrire l'historique.** Ni `filter-branch`, ni `filter-repo`. Une
+suppression commitée suffit. Conséquence assumée : **le `.git` ne rétrécira pas de ces
+48 Mo, il va même très légèrement grossir** (nouveaux objets commit et tree). L'objectif
+est le poids du répertoire de travail, pas celui de l'historique.
+
+⚠️ **LE POINT QUI DÉCIDE DE TOUT, ET QUE J'AVAIS RATÉ : sur quelle branche ?**
+
+`HEAD` est actuellement sur `test-theme-sapi-maison`. Si la suppression est commitée sur
+`master` seulement, alors **dès que Robin repasse sur `test`, Git restaure les 48 Mo**
+dans son répertoire de travail. Le gain n'existerait que tant que `master` est sorti,
+c'est-à-dire quasiment jamais. Pire, ça recrée exactement la divergence
+« master en avance sur test » que la tâche du 09/09 juste en dessous vient de corriger.
+
+**Donc : la suppression doit exister sur les deux branches.** Propose à Robin l'ordre qui
+te paraît le plus sûr compte tenu de l'état réel des refs au moment où tu interviens, et
+**attends sa réponse avant de committer quoi que ce soit.** Ne tranche pas seul.
+
+**2. Lancer `git gc` sur `site-web/`**
+
+- **`git gc` nu. Sans `--aggressive`, sans `--prune=now`.** Ce n'est pas un détail :
+  `.git/logs/HEAD` fait 2 775 lignes remontant à février, et c'est le filet de sécurité
+  de tous les reverts et cherry-picks passés. Un `--prune=now` détruirait immédiatement
+  tout ce qui est injoignable. Avec les réglages par défaut (90 j / 30 j), le filet reste.
+- Donc **« risque nul » était faux de ma part**, et je le corrige : le risque est faible
+  *à condition* d'utiliser la commande nue.
+- Gain plausible autour de 100 Mo : `objects/` = 196 Mo dont seulement 51 Mo de pack,
+  et **5 536 objets loose** à compacter.
+- **Demande à Robin de fermer GitHub Desktop avant.** C'est là qu'est le vrai risque de
+  verrou : `gc` pose un `gc.pid` et réécrit `objects/`.
+- C'est toi qui lances : je ne peux exécuter aucune commande `git` depuis le sandbox
+  Cowork, un simple `git status` y laisse un `index.lock` qui bloque GitHub Desktop
+  (cf. `feedback_git_sandbox_index_lock`).
+
+**3. Point annexe, dans un commit SÉPARÉ**
+
+`site-web/.claude/settings.local.json` existe (11 454 o, 11/06/2026), n'est pas dans
+`.git/index`, n'est couvert ni par `.gitignore` ni par `.git/info/exclude`. S'il contient
+des réglages locaux, l'ajouter au `.gitignore`. **Ne mélange pas ça au commit de
+suppression** : ça modifie un fichier suivi et ça brouille le diff.
+
+---
+
+**Critères de succès, tous vérifiables par une sortie de commande**
+
+1. **Relève les refs AVANT de commencer** et colle-les dans ton retour : `master`,
+   `test-theme-sapi-maison`, `prod-catalogue-poids`, les 5 branches `feature/*` locales
+   et les 4 tags. Ne te fie pas aux valeurs des blocs précédents de ce fichier, elles
+   sont périmées. Le critère « aucune branche n'a bougé » n'a de sens que mesuré contre
+   cette relève, et il exclut évidemment la ou les branches portant le commit de
+   suppression.
+2. `find mockups -type f | wc -l` avant et après : **delta attendu exactement −47**.
+   C'est la vérification que rien d'autre n'est parti, y compris `sapi-radical-kinetic`.
+3. `du -sh mockups` renvoie **~1,8 Mo**.
+4. `du -sh .git` avant et après le `gc`, **les deux sorties collées**, pas une affirmation.
+5. Aucun historique réécrit.
+6. **Tu ne pousses pas.** Selon ce que Robin aura tranché au point 1, soit tu stages avec
+   `git rm -r` et il valide dans GitHub Desktop, soit tu fais un simple `rm` et il voit la
+   modification. **Dis-lui explicitement laquelle des deux tu as faite**, et fournis-lui
+   le message de commit.
+
+---
+
 ## [✅ FAIT — 2026-09-09] Reporter sur test le commit CSS parti par erreur sur master
 
 **Date :** 2026-09-09

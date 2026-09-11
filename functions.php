@@ -1906,34 +1906,34 @@ function sapi_maison_open_graph() {
 }
 add_action('wp_head', 'sapi_maison_open_graph');
 
-// Meta descriptions (SEO)
+// Meta description — FICHES PRODUIT UNIQUEMENT.
+//
+// Relevé au rendu le 11/09/2026, en comparant la fermeture des balises (Yoast ferme
+// en " />", le thème en "\">") et leur position dans le HTML :
+//   accueil, page catégorie, /mes-creations/  ->  DEUX balises, Yoast puis le thème
+//   fiche produit                             ->  UNE seule, et c'est celle du thème
+//
+// Yoast n'émet aucune description sur le type de contenu "product" : son modèle est
+// vide dans Réglages > Types de contenu > Produits. Les branches catégorie, boutique
+// et accueil ont donc été retirées (elles faisaient doublon), mais la branche produit
+// RESTE, sinon les 43 fiches du sitemap se retrouvent sans description.
+//
+// Pour supprimer aussi cette dernière branche un jour : renseigner d'abord %%excerpt%%
+// dans le modèle Yoast des produits, purger les caches, vérifier au rendu qu'une balise
+// fermée en " />" apparaît sur une fiche, et seulement ensuite retirer ce code.
 function sapi_maison_meta_description() {
-  $description = '';
+  if (!is_singular('product')) {
+    return;
+  }
 
-  if (is_singular('product')) {
-    global $product;
-    if ($product) {
-      $description = wp_strip_all_tags($product->get_short_description());
-      if (empty($description)) {
-        $description = wp_strip_all_tags($product->get_description());
-      }
-    }
-  } elseif (class_exists('WooCommerce') && is_product_category()) {
-    $term = get_queried_object();
-    if ($term) {
-      $descs = [
-        'suspension' => 'Découvrez les suspensions artisanales en bois de l\'Atelier Sâpi. Luminaires suspendus design, découpés au laser et assemblés à la main à Lyon.',
-        'lampadaire' => 'Les lampadaires en bois sculptés de Robin transforment vos espaces. Éclairage d\'ambiance unique, fabriqués en France à Lyon.',
-        'applique' => 'Appliques murales artisanales en bois. Créez des jeux de lumière poétiques sur vos murs. Chaque pièce est unique.',
-        'lampe-a-poser' => 'Lampes à poser portables en bois. Déplacez-les où vous voulez pour créer une bulle de lumière intime.',
-        'accessoires' => 'Accessoires pour luminaires artisanaux. Ampoules, câbles textile et pièces détachées pour vos créations Atelier Sâpi.',
-      ];
-      $description = isset($descs[$term->slug]) ? $descs[$term->slug] : wp_strip_all_tags(term_description($term->term_id, 'product_cat'));
-    }
-  } elseif (class_exists('WooCommerce') && is_shop()) {
-    $description = 'Luminaires artisanaux en bois, découpés au laser et assemblés à la main à Lyon. Suspensions, lampadaires, appliques et lampes design.';
-  } elseif (is_front_page()) {
-    $description = get_bloginfo('description') ?: 'Luminaires artisanaux en bois sculptés à la main à Lyon. Suspensions, lampadaires, appliques et lampes design. 100% français.';
+  global $product;
+  if (!$product) {
+    return;
+  }
+
+  $description = wp_strip_all_tags($product->get_short_description());
+  if (empty($description)) {
+    $description = wp_strip_all_tags($product->get_description());
   }
 
   if (!empty($description)) {
